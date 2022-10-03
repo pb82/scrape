@@ -16,7 +16,7 @@ func (*Scanner) Scan(data string) (TokenList, error) {
 	var tokens TokenList
 	runes := []rune(data)
 	index := 0
-	line := 1
+	line := 0
 	quoted := false
 
 	next := func() rune {

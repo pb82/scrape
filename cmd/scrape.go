@@ -1,26 +1,44 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
 	"scrape/api"
-	"scrape/pkg/common"
+	"scrape/pkg/promql"
 	"scrape/pkg/scrape"
 	"scrape/store"
 	"scrape/version"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
+
+func startTicker(tick chan<- bool, duration time.Duration) {
+	/*
+		go func() {
+			for true {
+				tick <- true
+				time.Sleep(duration)
+			}
+		}()
+	*/
+	go func() {
+		tick <- true
+	}()
+
+}
 
 func main() {
 	printVersion := flag.Bool("version", false, "print version and exit")
 	scrapeUrls := flag.String("scrape.urls", "", "list of urls to scrape")
 	scrapeInterval := flag.String("scrape.interval", "10s", "scrape interval")
 	sqliteFilename := flag.String("sqlite.file", "metrics.db", "sqlite database file")
+	interactive := flag.Bool("interactive", false, "interactive mode")
 	flag.Parse()
 
 	if *printVersion {
@@ -28,12 +46,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	scrapeStatus := make(chan common.OperationResult)
-	dbStatus := make(chan common.OperationResult)
 	quitScrape := make(chan bool, 1)
 	quitDb := make(chan bool, 1)
 	sigs := make(chan os.Signal)
 	samples := make(chan api.Sample, 512)
+	tick := make(chan bool)
 	wg := &sync.WaitGroup{}
 
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGINT)
@@ -51,7 +68,7 @@ func main() {
 		panic(err)
 	}
 
-	sqlite.Run(samples, dbStatus, quitDb)
+	sqlite.Run(samples, quitDb)
 
 	if scrapeUrls != nil && *scrapeUrls != "" {
 		var scrapeTargets []*url.URL
@@ -65,12 +82,41 @@ func main() {
 		}
 
 		for _, scrapeTarget := range scrapeTargets {
-			scraper, err := scrape.NewUrlScaper(scrapeTarget, *scrapeInterval, wg)
+			scraper, err := scrape.NewUrlScaper(scrapeTarget, wg)
 			if err != nil {
 				panic(err)
 			}
-			scraper.Scrape(scrapeStatus, samples, quitScrape)
+			scraper.Scrape(samples, quitScrape, tick)
 		}
+	}
+
+	duration, err := time.ParseDuration(*scrapeInterval)
+	if err != nil {
+		panic(err)
+	}
+	startTicker(tick, duration)
+
+	if *interactive {
+
+		go func() {
+			for true {
+				reader := bufio.NewReader(os.Stdin)
+				fmt.Print("> ")
+				text, _ := reader.ReadString('\n')
+				if text == "" {
+					continue
+				}
+				promQlScanner := promql.NewPromQlScanner(text)
+				promqlTokens := promQlScanner.ScanPromQl()
+				promQlParser := promql.NewPromQlParser(promqlTokens)
+				ast, err := promQlParser.Parse()
+				if err != nil {
+					fmt.Println(fmt.Sprintf("[error] %v", err.Error()))
+					continue
+				}
+				fmt.Println(ast)
+			}
+		}()
 	}
 
 	wg.Wait()

@@ -1,19 +1,21 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"scrape/api"
-	"scrape/pkg/common"
 	"sync"
+	"time"
 )
 
 const tableTimeseries = `
 create table if not exists 'timeseries' (
     id		INTEGER PRIMARY KEY AUTOINCREMENT,
     hash    TEXT,
-    unique(hash)                                 
+    UNIQUE(hash)                                 
 )
 `
 
@@ -41,9 +43,31 @@ create table if not exists 'timeseries_labels' (
 )
 `
 
+type SqliteColumn struct {
+	Name  string
+	Value string
+}
+
+type SqliteRow struct {
+	Columns []SqliteColumn
+}
+
+type SqliteResult struct {
+	Rows []SqliteRow
+}
+
 type SqliteStore struct {
 	db *sql.DB
 	wg *sync.WaitGroup
+}
+
+func getTimeseries(labels []api.Label) string {
+	hf := sha256.New()
+	for _, label := range labels {
+		hf.Write([]byte(label.Name))
+		hf.Write([]byte(label.Value))
+	}
+	return fmt.Sprintf("%x", hf.Sum(nil))
 }
 
 func createTables(db *sql.DB) error {
@@ -70,8 +94,73 @@ func createTables(db *sql.DB) error {
 	return nil
 }
 
+func insertSample(db *sql.DB, sample *api.Sample) error {
+	hash := getTimeseries(sample.Labels)
+	stmt, err := db.Prepare(`insert into timeseries(hash) values(?) on conflict(hash) do update set hash = hash returning id;`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	var timeseriesId = 0
+	row := stmt.QueryRow(hash)
+	row.Scan(&timeseriesId)
+
+	labelIds := map[string]int{}
+	for _, label := range sample.Labels {
+		stmt, err = db.Prepare(`
+insert into labels(name) values(?) on conflict(name) do update set name = name returning id
+`)
+		if err != nil {
+			return err
+		}
+		var labelId = 0
+		row := stmt.QueryRow(label.Name)
+		row.Scan(&labelId)
+		labelIds[label.Name] = labelId
+		stmt.Close()
+	}
+
+	stmt, err = db.Prepare(`
+insert or ignore into samples(timestamp, timeseries_id, value) values(?, ?, ?)
+`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	result, err := stmt.Exec(time.Now().Unix(), timeseriesId, sample.Value)
+	if err != nil {
+		return err
+	}
+
+	// no new metric was inserted, exit early
+	// we can only capture metrics at 1s resolution
+	metricId, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	if metricId <= 0 {
+		return nil
+	}
+
+	for _, label := range sample.Labels {
+		stmt, err = db.Prepare(`
+insert into timeseries_labels(timeseries_id, label_id, label_value) values(?,?,?)
+`)
+		if err != nil {
+			return err
+		}
+		_, err = stmt.Exec(timeseriesId, labelIds[label.Name], label.Value)
+		if err != nil {
+			return err
+		}
+		stmt.Close()
+	}
+
+	return nil
+}
+
 func NewSqliteStore(filename string, wg *sync.WaitGroup) (*SqliteStore, error) {
-	db, err := sql.Open("sqlite3", filename)
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%v?cache=shared&mode=rwc&_journal_mode=WAL", filename))
 	if err != nil {
 		return nil, err
 	}
@@ -88,18 +177,20 @@ func NewSqliteStore(filename string, wg *sync.WaitGroup) (*SqliteStore, error) {
 	}, nil
 }
 
-func (s *SqliteStore) Run(samples <-chan api.Sample, status chan<- common.OperationResult, quit <-chan bool) {
+func (s *SqliteStore) Run(samples <-chan api.Sample, quit <-chan bool) {
 	go func() {
 		for true {
 			select {
 			case <-quit:
 				log.Print("[sqlite] quit signal received")
 				s.db.Close()
-				close(status)
 				s.wg.Done()
 				break
-			case _ = <-samples:
-				// log.Printf("[sqlite] sample received: %v", s.Labels)
+			case sample := <-samples:
+				err := insertSample(s.db, &sample)
+				if err != nil {
+					log.Printf("[sqlite] error adding sample: %v", err)
+				}
 			}
 		}
 	}()

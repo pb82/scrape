@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"scrape/api"
-	"scrape/pkg/common"
 	"scrape/pkg/ingest"
 	"sync"
 	"time"
@@ -21,22 +20,13 @@ type UrlScaper struct {
 	wg             *sync.WaitGroup
 }
 
-func NewUrlScaper(u *url.URL, interval string, wg *sync.WaitGroup) (*UrlScaper, error) {
-	duration, err := time.ParseDuration(interval)
-	if err != nil {
-		return nil, err
-	}
-
-	client := http.Client{
-		Timeout: duration,
-	}
-
+func NewUrlScaper(u *url.URL, wg *sync.WaitGroup) (*UrlScaper, error) {
+	client := http.Client{}
 	wg.Add(1)
 	return &UrlScaper{
-		scrapeUrl:      u,
-		scrapeInterval: duration,
-		client:         &client,
-		wg:             wg,
+		scrapeUrl: u,
+		client:    &client,
+		wg:        wg,
 	}, nil
 }
 
@@ -84,29 +74,22 @@ func (s *UrlScaper) scrapeInternal(samples chan<- api.Sample) error {
 	return s.parseResponse(bytes, samples)
 }
 
-func (s *UrlScaper) Scrape(status chan<- common.OperationResult, samples chan<- api.Sample, quit <-chan bool) {
+func (s *UrlScaper) Scrape(samples chan<- api.Sample, quit <-chan bool, tick <-chan bool) {
 	go func() {
 		for true {
 			select {
 			case <-quit:
 				log.Print("[scrape] quit signal received")
-				close(status)
 				s.wg.Done()
 				break
-			default:
+			case <-tick:
 				start := time.Now()
 				err := s.scrapeInternal(samples)
 				elapsed := time.Since(start)
 				if err != nil {
-					status <- common.OperationResult{
-						Status:  common.OperationStatusFailed,
-						Message: err.Error(),
-					}
+					log.Printf("[scrape] scraping %v failed", s.scrapeUrl)
 				} else {
-					status <- common.OperationResult{
-						Status:  common.OperationStatusSuccess,
-						Message: fmt.Sprintf("scrape of %v finished in %vms", s.scrapeUrl, elapsed.Milliseconds()),
-					}
+					log.Printf("[scrape] scraping %v succeeded in %vms", s.scrapeUrl, elapsed.Milliseconds())
 				}
 				time.Sleep(s.scrapeInterval)
 			}

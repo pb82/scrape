@@ -29,6 +29,7 @@ a_metric
 				{
 					TokenType: TokenTypeName,
 					StringVal: "a_metric",
+					Line:      1,
 				},
 			},
 		},
@@ -41,10 +42,12 @@ a_metric 1.0
 				{
 					TokenType: TokenTypeName,
 					StringVal: "a_metric",
+					Line:      1,
 				},
 				{
-					TokenType: TokenTypeValue,
+					TokenType: TokenTypeName,
 					StringVal: "1.0",
+					Line:      1,
 				},
 			},
 		},
@@ -57,33 +60,42 @@ a_metric{name="value"} 1.0
 				{
 					TokenType: TokenTypeName,
 					StringVal: "a_metric",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeLBrace,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "name",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeEquals,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "value",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeRBrace,
+					Line:      1,
 				},
 				{
-					TokenType: TokenTypeValue,
+					TokenType: TokenTypeName,
 					StringVal: "1.0",
+					Line:      1,
 				},
 			},
 		},
@@ -96,59 +108,73 @@ a_metric{name="value", foo="bar"} 1.0
 				{
 					TokenType: TokenTypeName,
 					StringVal: "a_metric",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeLBrace,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "name",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeEquals,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "value",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeComma,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "foo",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeEquals,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "bar",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeRBrace,
+					Line:      1,
 				},
 				{
-					TokenType: TokenTypeValue,
+					TokenType: TokenTypeName,
 					StringVal: "1.0",
+					Line:      1,
 				},
 			},
 		},
 		{
 			data: `
-
 a_metric{name="value", foo="bar"} 1.0
 `,
 			wantError: false,
@@ -156,53 +182,68 @@ a_metric{name="value", foo="bar"} 1.0
 				{
 					TokenType: TokenTypeName,
 					StringVal: "a_metric",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeLBrace,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "name",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeEquals,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "value",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeComma,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "foo",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeEquals,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeName,
 					StringVal: "bar",
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeQuote,
+					Line:      1,
 				},
 				{
 					TokenType: TokenTypeRBrace,
+					Line:      1,
 				},
 				{
-					TokenType: TokenTypeValue,
+					TokenType: TokenTypeName,
 					StringVal: "1.0",
+					Line:      1,
 				},
 			},
 		},
