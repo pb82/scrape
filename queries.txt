@@ -1,0 +1,15 @@
+timeseries for metrics:
+select timeseries_id from timeseries_labels where label_id = 1 and label_value = 'grafana_feature_toggles_info';
+
+labels for timeseries:
+select label_value from timeseries_labels where timeseries_id = 268;
+
+samples for timeserise:
+select timestamp, value from samples where timeseries_id = 268;
+
+
+select * from samples as s join timeseries_labels as tl on s.timeseries_id = tl.timeseries_id where s.timeseries_id in (select timeseries_id from timeseries_labels where label_id = 1 and label_value = 'grafana_feature_toggles_info');
+
+select * from samples as s join timeseries_labels as tl on s.timeseries_id = tl.timeseries_id where s.timeseries_id in (select timeseries_id from timeseries_labels where label_id = 1 and label_value = 'grafana_feature_toggles_info');
+
+select s.timeseries_id, tl.label_value, s.value  from samples as s join timeseries_labels as tl on s.timeseries_id = tl.timeseries_id where s.timeseries_id in (select timeseries_id from timeseries_labels where label_id = 1 and label_value = 'grafana_feature_toggles_info');cloudWatchDynamicLabels|2.0
