@@ -1,12 +1,13 @@
 package promql
 
 import (
+	"database/sql"
 	"errors"
 	"time"
 )
 
 type PromQlASTElement interface {
-	Eval()
+	Eval(db *sql.DB) error
 }
 
 type PromQlTimeseries struct {
@@ -19,8 +20,73 @@ type PromQlParser struct {
 	tokens []PromQlToken
 }
 
-func (s PromQlTimeseries) Eval() {
+type AggregatedLabel struct {
+	LabelName  string
+	LabelValue string
+}
 
+type AggregatedTimeseries struct {
+	Metric string
+	Labels []AggregatedLabel
+	Value  float64
+}
+
+func (s *PromQlTimeseries) Eval(db *sql.DB) error {
+	// get id of name label
+	stmt, err := db.Prepare(`select id from labels where name = ?;`)
+	if err != nil {
+		return err
+	}
+
+	result := stmt.QueryRow("__name__")
+	if result.Err() != nil {
+		return result.Err()
+	}
+
+	var id int64
+	err = result.Scan(&id)
+	if err != nil {
+		return err
+	}
+
+	// get samples id
+	stmt, err = db.Prepare(`
+select s.timeseries_id, tl.label_id, tl.label_value, s.value  from samples as s join timeseries_labels as tl on s.timeseries_id = tl.timeseries_id where s.timeseries_id in (select timeseries_id from timeseries_labels where label_id = ? and label_value = ?);
+`)
+	if err != nil {
+		return err
+	}
+
+	timeseries, err := stmt.Query(id, s.Name)
+	if result.Err() != nil {
+		return result.Err()
+	}
+
+	type sample = struct {
+		timeseries_id int
+		label_id      int
+		label_value   string
+		sample_value  float64
+	}
+
+	var samples []sample
+	for timeseries.Next() {
+		var s sample
+		err = timeseries.Scan(&s.timeseries_id, &s.label_id, &s.label_value, &s.sample_value)
+		if err != nil {
+			return err
+		}
+		samples = append(samples, s)
+	}
+
+	var aggregated map[int]AggregatedTimeseries
+	for _, sample := range samples {
+		if _, ok := aggregated[sample.timeseries_id]; !ok {
+			aggregated[sample.timeseries_id] = AggregatedTimeseries{}
+		}
+	}
+
+	return nil
 }
 
 func NewPromQlParser(tokens []PromQlToken) *PromQlParser {
@@ -61,7 +127,7 @@ func (s *PromQlParser) expect(tokenType PromQlTokenType) (*PromQlToken, error) {
 }
 
 func (s *PromQlParser) timeseries() (PromQlASTElement, error) {
-	t := PromQlTimeseries{}
+	t := &PromQlTimeseries{}
 	name, err := s.expect(PromQlName)
 	if err != nil {
 		return nil, err

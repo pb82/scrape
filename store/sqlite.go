@@ -7,6 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"scrape/api"
+	"scrape/pkg/promql"
 	"sync"
 	"time"
 )
@@ -53,7 +54,8 @@ type SqliteRow struct {
 }
 
 type SqliteResult struct {
-	Rows []SqliteRow
+	Rows    []SqliteRow
+	Success bool
 }
 
 type SqliteStore struct {
@@ -92,6 +94,15 @@ func createTables(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func runQuery(db *sql.DB, query promql.PromQlASTElement) *SqliteResult {
+	result := &SqliteResult{}
+	result.Success = true
+
+	query.Eval(db)
+
+	return result
 }
 
 func insertSample(db *sql.DB, sample *api.Sample) error {
@@ -177,7 +188,7 @@ func NewSqliteStore(filename string, wg *sync.WaitGroup) (*SqliteStore, error) {
 	}, nil
 }
 
-func (s *SqliteStore) Run(samples <-chan api.Sample, quit <-chan bool) {
+func (s *SqliteStore) Run(samples <-chan api.Sample, quit <-chan bool, queries <-chan promql.PromQlASTElement) {
 	go func() {
 		for true {
 			select {
@@ -191,6 +202,8 @@ func (s *SqliteStore) Run(samples <-chan api.Sample, quit <-chan bool) {
 				if err != nil {
 					log.Printf("[sqlite] error adding sample: %v", err)
 				}
+			case query := <-queries:
+				_ = runQuery(s.db, query)
 			}
 		}
 	}()

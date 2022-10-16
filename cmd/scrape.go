@@ -51,6 +51,7 @@ func main() {
 	sigs := make(chan os.Signal)
 	samples := make(chan api.Sample, 512)
 	tick := make(chan bool)
+	queries := make(chan promql.PromQlASTElement)
 	wg := &sync.WaitGroup{}
 
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGABRT, syscall.SIGINT)
@@ -68,7 +69,7 @@ func main() {
 		panic(err)
 	}
 
-	sqlite.Run(samples, quitDb)
+	sqlite.Run(samples, quitDb, queries)
 
 	if scrapeUrls != nil && *scrapeUrls != "" {
 		var scrapeTargets []*url.URL
@@ -114,7 +115,7 @@ func main() {
 					fmt.Println(fmt.Sprintf("[error] %v", err.Error()))
 					continue
 				}
-				fmt.Println(ast)
+				queries <- ast
 			}
 		}()
 	}
