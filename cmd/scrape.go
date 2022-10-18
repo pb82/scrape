@@ -19,18 +19,12 @@ import (
 )
 
 func startTicker(tick chan<- bool, duration time.Duration) {
-	/*
-		go func() {
-			for true {
-				tick <- true
-				time.Sleep(duration)
-			}
-		}()
-	*/
 	go func() {
-		tick <- true
+		for true {
+			tick <- true
+			time.Sleep(duration)
+		}
 	}()
-
 }
 
 func main() {
